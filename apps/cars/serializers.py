@@ -20,7 +20,7 @@ class BookingSerializer(serializers.ModelSerializer):
             'start_date', 'end_date', 'status', 'total_price', 'created_at'
         ]
         # Keep clients from writing their own total prices or force-approving their status
-        read_only_fields = ['client', 'status', 'total_price', 'created_at']
+        read_only_fields = ['client', 'total_price', 'created_at']
 
 def validate(self, attrs):
     start_date = attrs.get("start_date")
