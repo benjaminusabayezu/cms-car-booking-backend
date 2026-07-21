@@ -1,5 +1,5 @@
 from django.shortcuts import render
-from rest_framework import generics, status
+from rest_framework import generics, status, permissions
 from rest_framework.response import Response
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework_simplejwt.views import TokenObtainPairView
@@ -20,8 +20,75 @@ from .serializers import (
     ChangePasswordSerializer,
     ForgotPasswordSerializer,
     ResetPasswordSerializer,
+    # Make sure to define/import these three in serializers.py:
+    UserSerializer,
+    UserCreateSerializer,
+    UserRoleSerializer,
+    UserProfileSerializer,
+    SystemSettingsSerializer,
 )
 
+
+# ==========================================
+# Custom Permissions
+# ==========================================
+
+class IsAdminOrSuperAdmin(permissions.BasePermission):
+    """
+    Ensures only users with ADMIN or SUPERADMIN roles can manage users.
+    """
+    def has_permission(self, request, view):
+        return (
+            request.user 
+            and request.user.is_authenticated 
+            and getattr(request.user, 'role', None) in ['ADMIN', 'SUPERADMIN']
+        )
+
+
+# ==========================================
+# User Management Views (Dashboard)
+# ==========================================
+
+class UserListView(generics.ListCreateAPIView):
+    """
+    GET /api/auth/users/  -> Returns a list of all registered users.
+    POST /api/auth/users/ -> Provisions a new user account.
+    """
+    queryset = CustomUser.objects.all().order_by('-id')
+    authentication_classes = [JWTAuthentication]
+    permission_classes = [IsAdminOrSuperAdmin]
+
+    def get_serializer_class(self):
+        if self.request.method == 'POST':
+            return UserCreateSerializer
+        return UserSerializer
+
+
+class UserRoleUpdateView(generics.UpdateAPIView):
+    """
+    PATCH /api/auth/users/<id>/role/ -> Updates a specific user's access role.
+    """
+    queryset = CustomUser.objects.all()
+    serializer_class = UserRoleSerializer
+    authentication_classes = [JWTAuthentication]
+    permission_classes = [IsAdminOrSuperAdmin]
+
+    def patch(self, request, *args, **kwargs):
+        target_user = self.get_object()
+
+        # Security check: Prevent self-demotion or self-role edits
+        if target_user.id == request.user.id:
+            return Response(
+                {"detail": "You cannot modify your own role clearance level."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        return super().patch(request, *args, **kwargs)
+
+
+# ==========================================
+# Existing Authentication & Account Views
+# ==========================================
 
 class CustomTokenObtainPairView(TokenObtainPairView):
     """Login view to use customized token payload."""
@@ -44,7 +111,6 @@ class ChangePasswordView(APIView):
         serializer = ChangePasswordSerializer(data=request.data, context={'request': request})
         serializer.is_valid(raise_exception=True)
 
-        # FIXED TYPO: validated_data (was validate_data)
         request.user.set_password(serializer.validated_data['new_password'])
         request.user.save()
 
@@ -68,8 +134,7 @@ class ForgotPasswordView(APIView):
             token = PasswordResetTokenGenerator().make_token(user)
             uidb64 = urlsafe_base64_encode(force_bytes(user.pk))
 
-            # Point this to your frontend route that accepts token & uidb64
-            reset_link = f"https://yourfrontend.com/reset-password/{uidb64}/{token}/"
+            reset_link = f"http://localhost:5173/reset-password/{uidb64}/{token}/"
 
             send_mail(
                 subject="Password Reset Request",
@@ -79,7 +144,6 @@ class ForgotPasswordView(APIView):
                 fail_silently=False,
             )
         except CustomUser.DoesNotExist:
-            # Prevents email enumeration / user fishing attacks
             pass
 
         return Response(
@@ -104,3 +168,39 @@ class ResetPasswordView(APIView):
             {"message": "Password reset successful. You can now log in with your new password."},
             status=status.HTTP_200_OK
         )
+    
+class UserProfileView(generics.RetrieveUpdateAPIView):
+   """
+    GET /api/auth/profile/ -Fetch logged-in user profile details
+    PUT/PATCH /api/auth/profile/ - Update logged-in user profile details
+    """
+   serializer_class = UserProfileSerializer
+   authentication_classes = [JWTAuthentication]
+   permission_classes = [IsAuthenticated]
+
+   def get_object(self):
+        return self.request.user
+
+class UserSettingsView(generics.GenericAPIView):
+     """
+    GET /api/auth/settings/  -> Fetch current user settings/preferences
+    POST /api/auth/settings/ -> Update user settings/preferences
+    """
+     serializer_class = SystemSettingsSerializer
+     authentication_class = [JWTAuthentication]
+     permission_classes =[IsAuthenticated]
+
+     def get(self, request):
+         #defaultsetting state.
+         settings_data ={
+             "notifications_enabled":True,
+             "email_alerts":True,
+             "theme_preference": "light"
+         }
+         return Response(settings_data, status = status.HTTP_200_OK)
+     def post(self, request):
+        serializer = self.get_serializer(data = request.data)
+        serializer.is_valid(raise_exception = True)
+        return Response({"Message" :"Settings Updated Successfully.","data": serializer.validated_data},status = status.HTTP_200_OK)
+     
+    

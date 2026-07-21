@@ -50,6 +50,7 @@ INSTALLED_APPS = [
     'apps.cars',
 
 ]
+EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
 
 MIDDLEWARE = [
     'corsheaders.middleware.CorsMiddleware',
