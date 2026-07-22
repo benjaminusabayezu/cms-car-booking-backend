@@ -15,24 +15,29 @@ class Command(BaseCommand):
 
         if not email or not password:
             self.stdout.write(
-                "ADMIN_EMAIL or ADMIN_PASSWORD not set"
+                self.style.ERROR(
+                    "ADMIN_EMAIL or ADMIN_PASSWORD not set"
+                )
             )
             return
 
-        if not User.objects.filter(email=email).exists():
-
-            user = User.objects.create_superuser(
-                email=email,
-                password=password
-            )
-
+        if User.objects.filter(email=email).exists():
             self.stdout.write(
-                self.style.SUCCESS(
-                    f"Admin created: {user.email}"
+                self.style.WARNING(
+                    "Admin already exists"
                 )
             )
+            return
 
-        else:
-            self.stdout.write(
-                "Admin already exists"
+        user = User.objects.create_superuser(
+            username=email,
+            email=email,
+            password=password,
+            role="admin"
+        )
+
+        self.stdout.write(
+            self.style.SUCCESS(
+                f"Admin created successfully: {user.email}"
             )
+        )
