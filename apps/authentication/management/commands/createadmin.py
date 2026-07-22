@@ -4,7 +4,8 @@ import os
 
 
 class Command(BaseCommand):
-    help = "Create default admin user"
+    help = "Create default admin user or fix existing admin role"
+
 
     def handle(self, *args, **kwargs):
 
@@ -21,20 +22,41 @@ class Command(BaseCommand):
             )
             return
 
-        if User.objects.filter(email=email).exists():
-            self.stdout.write(
-                self.style.WARNING(
-                    "Admin already exists"
+
+        # Check if admin already exists
+        existing_user = User.objects.filter(email=email).first()
+
+
+        if existing_user:
+
+            # Fix old lowercase role
+            if existing_user.role != "ADMIN":
+                existing_user.role = "ADMIN"
+                existing_user.save()
+
+                self.stdout.write(
+                    self.style.SUCCESS(
+                        f"Existing admin role updated: {existing_user.email}"
+                    )
                 )
-            )
+            else:
+                self.stdout.write(
+                    self.style.WARNING(
+                        f"Admin already exists: {existing_user.email}"
+                    )
+                )
+
             return
 
+
+        # Create new admin
         user = User.objects.create_superuser(
             username=email,
             email=email,
             password=password,
-            role="admin"
+            role="ADMIN"
         )
+
 
         self.stdout.write(
             self.style.SUCCESS(
