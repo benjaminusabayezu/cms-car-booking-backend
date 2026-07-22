@@ -25,7 +25,7 @@ class LandingPageConfig(SingletonModel):
     #footer element
 
     contact_email =models.CharField(default="support@carx.com")
-    contact_phone = models.CharField(max_length=15, default="+250 784 445 193")
+    contact_phone = models.CharField(max_length=25, default="+250 784 445 193")
     updated_at =models.DateTimeField(auto_now=True)
     copyright_text =models.CharField(max_length=150, default=" 2026 CarX. All right reserved.")
 
