@@ -57,7 +57,7 @@ class SocialLinkSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = SocialLink
-        fields = ['id', 'platform', 'platform_display', 'url', 'is_active']
+        fields = ['id', 'platform', 'platform_display', 'url', 'is_active','order',]
 class NavbarLinkSerializer(serializers.ModelSerializer):
     class Meta:
         model = NavbarLink
