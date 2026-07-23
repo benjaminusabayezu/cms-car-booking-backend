@@ -1,4 +1,5 @@
-from django.db import models
+from django.db import models,transaction
+from django.db.models import F
 from django.core.exceptions import ValidationError
 # Create your models here.
 
@@ -14,17 +15,39 @@ class SingletonModel(models.Model):
     def save(self, *args, **kwargs):
         self.clean()
         super().save(*args, **kwargs)
+
+class OrderedModel(models.Model):
+    order = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        abstract = True
+
+    def save(self, *args, **kwargs):
+        if self.order == 0:
+            last_order = self.__class__.objects.aggregate(
+                max_order=models.Max("order")
+            )["max_order"]
+
+            self.order = (last_order or 0) + 1
+
+        super().save(*args, **kwargs)
 class LandingPageConfig(SingletonModel):
     """model holding the core settings"""
     site_name = models.CharField(max_length=50, default= "CarX")
     hero_title = models.CharField(max_length=150, default="Find,Book and Rent a Car in Easy Steps")
-    hero_subtitle = models.CharField(default="Get access to a diverse fleet of high-quality vehicles with flexible booking plans.")
+    hero_subtitle = models.CharField(
+    max_length=255,
+    default="Get access to a diverse fleet of high-quality vehicles with flexible booking plans."
+)
     hero_cta_text =models.CharField(max_length=50, default="Explore Cars")
     hero_image = models.ImageField(upload_to='cms/hero/',blank=True, null=True)
 
     #footer element
 
-    contact_email =models.CharField(default="support@carx.com")
+    contact_email = models.CharField(
+    max_length=100,
+    default="support@carx.com"
+)
     contact_phone = models.CharField(max_length=25, default="0 784 445 193")
     updated_at =models.DateTimeField(auto_now=True)
     copyright_text =models.CharField(max_length=150, default=" 2026 CarX. All right reserved.")
@@ -61,7 +84,7 @@ class FooterConfig(SingletonModel):
 
     def __str__(self):
         return "Footer Configuration Settings"
-class Service(models.Model):
+class Service(OrderedModel):
     title = models.CharField(max_length=100)
     description = models.TextField()
     icon_name = models.CharField(
@@ -69,7 +92,6 @@ class Service(models.Model):
         help_text="CSS class or Lucide/FontAwesome icon name (e.g., 'car', 'calendar')", 
         blank=True
     )
-    order = models.PositiveIntegerField(default=0, help_text="Controls the display order on the landing page.")
 
     class Meta:
         ordering = ['order']
@@ -78,23 +100,32 @@ class Service(models.Model):
         return self.title
 
 
-class Feature(models.Model):
+
+class Feature(OrderedModel):
     title = models.CharField(max_length=100)
     description = models.TextField()
     image = models.ImageField(upload_to='cms/features/', blank=True, null=True)
-    order = models.PositiveIntegerField(default=0)
-
+    
     class Meta:
         ordering = ['order']
+
+    def save(self, *args, **kwargs):
+        if self.order == 0:
+            last_order = Feature.objects.aggregate(
+                max_order=models.Max("order")
+            )["max_order"]
+
+            self.order = (last_order or 0) + 1
+
+        super().save(*args, **kwargs)
 
     def __str__(self):
         return self.title
 
-class FAQ(models.Model):
+class FAQ(OrderedModel):
     question = models.CharField(max_length=255)
     answer = models.TextField()
-    order = models.PositiveIntegerField(default=0)
-
+    
     class Meta:
         verbose_name = "FAQ"
         verbose_name_plural = "FAQs"
@@ -103,17 +134,19 @@ class FAQ(models.Model):
     def __str__(self):
         return self.question
     
-class Testimonial(models.Model):
+class Testimonial(OrderedModel):
     client_name = models.CharField(max_length=100)
     client_role = models.CharField(max_length=100, help_text="e.g. CEO, Customer, Traveler", blank=True)
     client_avatar = models.ImageField(upload_to='cms/testimonials/', blank=True, null=True)
     review_text = models.TextField()
     rating = models.PositiveIntegerField(default=5, help_text="Star rating from 1 to 5")
 
+    class Meta:
+        ordering =['order']
     def __str__(self):
         return f"Testimonial from {self.client_name}"
 
-class SocialLink(models.Model):
+class SocialLink(OrderedModel):
     PLATFORM_CHOICES = [
         ('facebook', 'Facebook'),
         ('twitter', 'Twitter / X'),
@@ -125,14 +158,16 @@ class SocialLink(models.Model):
     url = models.URLField()
     is_active = models.BooleanField(default=True)
 
+    class Meta:
+        ordering =['order']
+
     def __str__(self):
         return f"{self.get_platform_display()} Link"
-class NavbarLink(models.Model):
+class NavbarLink(OrderedModel):
     """dynamic navigation links"""
     label = models.CharField(max_length=50 , help_text="The display text for the link (e.g., 'Cars')")
     url_path = models.CharField(max_length=100, help_text="The react router route path (e.g., '/cars')")
     icon_name = models.CharField(max_length=50, blank=True, null=True,help_text="React icon class or string identifier (e.g., 'CarIcon')")
-    order = models.PositiveIntegerField(default=0, help_text="Sorting order in the navbar")
     is_active=models.BooleanField(default=True)
 
     class Meta:
